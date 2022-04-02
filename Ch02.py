@@ -66,7 +66,7 @@ housing.info()
 housing["ocean_proximity"].value_counts()
 
 
-%matplotlib inline
+
 import matplotlib.pyplot as plt
 housing.hist(bins=50, figsize=(20,15)) #查看数据分布
 save_fig("attribute_histogram_plots")
@@ -460,7 +460,8 @@ full_pipeline = FeatureUnion(transformer_list=[
         ("cat_pipeline", cat_pipeline),
     ])
 #%%使用流水线转化器
-# TODO
+
+
 housing_prepared = full_pipeline.fit_transform(housing)
 housing_prepared
 
@@ -468,7 +469,86 @@ housing_prepared
 
 
 
+#%%使用线性回归做一个简单的模型
+from sklearn.linear_model import LinearRegression
 
+lin_reg = LinearRegression()
+lin_reg.fit(housing_prepared, housing_labels)
+
+
+
+
+#%%调用mean_squared_error函数计算模型的RMSE
+from sklearn.metrics import mean_squared_error
+housing_predictions = lin_reg.predict(housing_prepared)
+lin_mse = mean_squared_error(housing_labels, housing_predictions)
+lin_rmse = np.sqrt(lin_mse)
+lin_rmse
+
+
+
+# %%决策树模型
+from sklearn.tree import DecisionTreeRegressor
+
+tree_reg = DecisionTreeRegressor()
+tree_reg.fit(housing_prepared, housing_labels)
+housing_predictions = tree_reg.predict(housing_prepared)
+tree_mse = mean_squared_error(housing_labels, housing_predictions)
+tree_rmse = np.sqrt(tree_mse)
+tree_rmse
+
+
+
+# %%sklearn交叉验证
+from sklearn.model_selection import cross_val_score
+scores = cross_val_score(tree_reg, housing_prepared, housing_labels,scoring="neg_mean_squared_error", cv=10)
+tree_rmse_scores = np.sqrt(-scores)
+#sklearn交叉验证使用的函数是效用函数（越大越好）
+
+# %%sklearn保存sklearnm模型
+import joblib
+
+joblib.dump(tree_reg, "my_model.pkl")
+# 然后
+my_model_loaded = joblib.load("my_model.pkl")
+
+#%%随机森林模型
+from sklearn.ensemble import RandomForestRegressor
+forest_reg = RandomForestRegressor()
+forest_reg.fit(housing_prepared, housing_labels)
+
+
+
+
+#%%sklearn网格搜索
+from sklearn.model_selection import GridSearchCV
+
+param_grid = [
+    {'n_estimators': [3, 10, 30], 'max_features': [2, 4, 6, 8]},
+    {'bootstrap': [False], 'n_estimators': [3, 10], 'max_features': [2, 3, 4]},
+  ]
+
+forest_reg = RandomForestRegressor()
+
+grid_search = GridSearchCV(forest_reg, param_grid, cv=5,
+                           scoring='neg_mean_squared_error')
+
+grid_search.fit(housing_prepared, housing_labels)
+grid_search.best_params_ #最佳模型超参数设置
+grid_search.best_estimator_ #最佳模型
+feature_importances = grid_search.best_estimator_.feature_importances_ #特征重要性
+#%%用测试机评估系统
+final_model = grid_search.best_estimator_
+
+X_test = strat_test_set.drop("median_house_value", axis=1)
+y_test = strat_test_set["median_house_value"].copy()
+
+X_test_prepared = full_pipeline.transform(X_test)
+
+final_predictions = final_model.predict(X_test_prepared)
+
+final_mse = mean_squared_error(y_test, final_predictions)
+final_rmse = np.sqrt(final_mse)   # => evaluates to 48,209.6
 
 
 # %%
