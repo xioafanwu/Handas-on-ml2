@@ -551,4 +551,3 @@ final_mse = mean_squared_error(y_test, final_predictions)
 final_rmse = np.sqrt(final_mse)   # => evaluates to 48,209.6
 
 
-# %%
