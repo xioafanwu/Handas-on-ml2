@@ -24,8 +24,8 @@ import numpy as np
 shuffle_index = np.random.permutation(60000)
 X_train, y_train = X_train[shuffle_index], y_train[shuffle_index]
 #%%训练一个二分类器
-y_train_9 = (y_train == 9) # True for all 5s, False for all other digits.
-y_test_9 = (y_test == 9)
+y_train_5 = (y_train == 5) # True for all 5s, False for all other digits.
+y_test_5 = (y_test == 5)
 
 #%%随机梯度下降分类器 SGD
 from sklearn.linear_model import SGDClassifier
@@ -59,7 +59,7 @@ class Never5Classifier(BaseEstimator):
         return np.zeros((len(X), 1), dtype=bool)
 
 # %%
-from sklearn.model_selection import cross_val_predict
+from sklearn.model_selection import cross_val_predict #k折交叉验证，返回基于每一个测试折做出的一个预测值
 y_train_pred = cross_val_predict(sgd_clf, X_train, y_train_5, cv=3)
 
 #%%
@@ -113,3 +113,79 @@ plt.plot(fpr, tpr, "b:", label="SGD")
 plot_roc_curve(fpr_forest, tpr_forest, "Random Forest")
 plt.legend(loc="bottom right")
 plt.show()
+
+#%%多分类方法
+sgd_clf.fit(X_train, y_train)
+sgd_clf.predict([some_digit]) #预测某个样本是哪一类
+some_digit_scores = sgd_clf.decision_function([some_digit]) #看一个样本每一类的具体分数验证
+# %%引入正则化使得预测精度更好
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train.astype(np.float64))
+cross_val_score(sgd_clf, X_train_scaled, y_train, cv=3, scoring="accuracy")
+# %%误差分析
+y_train_pred = cross_val_predict(sgd_clf, X_train_scaled, y_train, cv=3)
+conf_mx = confusion_matrix(y_train, y_train_pred) #混淆矩阵可视化
+plt.matshow(conf_mx, cmap=plt.cm.gray)
+plt.show()
+#%%除以总数看被误分类的样本
+row_sums = conf_mx.sum(axis=1, keepdims=True)
+norm_conf_mx = conf_mx / row_sums
+np.fill_diagonal(norm_conf_mx, 0)
+plt.matshow(norm_conf_mx, cmap=plt.cm.gray)
+plt.show()
+#%%可视化预测和实际的结果
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+mpl.rc('axes', labelsize=14)
+mpl.rc('xtick', labelsize=12)
+mpl.rc('ytick', labelsize=12)# Where to save the figures
+#在当前工作空间创建目录
+PROJECT_ROOT_DIR = "."
+CHAPTER_ID = "classification"
+IMAGES_PATH = os.path.join(PROJECT_ROOT_DIR, "images", CHAPTER_ID)
+os.makedirs(IMAGES_PATH, exist_ok=True)
+
+def save_fig(fig_id, tight_layout=True, fig_extension="png", resolution=300):
+    path = os.path.join(IMAGES_PATH, fig_id + "." + fig_extension)
+    print("Saving figure", fig_id)
+    if tight_layout:
+        plt.tight_layout()
+    plt.savefig(path, format=fig_extension, dpi=resolution)
+def plot_digits(instances, images_per_row=10, **options):
+    size = 28
+    images_per_row = min(len(instances), images_per_row)
+    images = [instance.reshape(size,size) for instance in instances]
+    n_rows = (len(instances) - 1) // images_per_row + 1
+    row_images = []
+    n_empty = n_rows * images_per_row - len(instances)
+    images.append(np.zeros((size, size * n_empty)))
+    for row in range(n_rows):
+        rimages = images[row * images_per_row : (row + 1) * images_per_row]
+        row_images.append(np.concatenate(rimages, axis=1))
+    image = np.concatenate(row_images, axis=0)
+    plt.imshow(image, cmap = mpl.cm.binary, **options)
+    plt.axis("off")
+cl_a, cl_b = 3, 5
+X_aa = X_train[(y_train == cl_a) & (y_train_pred == cl_a)]
+X_ab = X_train[(y_train == cl_a) & (y_train_pred == cl_b)]
+X_ba = X_train[(y_train == cl_b) & (y_train_pred == cl_a)]
+X_bb = X_train[(y_train == cl_b) & (y_train_pred == cl_b)]
+
+plt.figure(figsize=(8,8))
+plt.subplot(221); plot_digits(X_aa[:25], images_per_row=5)
+plt.subplot(222); plot_digits(X_ab[:25], images_per_row=5)
+plt.subplot(223); plot_digits(X_ba[:25], images_per_row=5)
+plt.subplot(224); plot_digits(X_bb[:25], images_per_row=5)
+save_fig("error_analysis_digits_plot")
+plt.show()
+#%%输出对应多个标签
+from sklearn.neighbors import KNeighborsClassifier
+y_train_large = (y_train >= 7)
+y_train_odd = (y_train % 2 == 1)
+y_multilabel = np.c_[y_train_large, y_train_odd]
+knn_clf = KNeighborsClassifier()
+knn_clf.fit(X_train, y_multilabel)
+#%%多标签分类的误差评估
+y_train_knn_pred = cross_val_predict(knn_clf, X_train, y_train, cv=3)
+f1_score(y_train, y_train_knn_pred, average="macro")
